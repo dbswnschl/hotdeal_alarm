@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div>
+  <form id="form_search" class="form-inline" style="text-align:left">
+    <div class="container-fluid">
+      <div class="row show-grid">
+        <span class="col-md-6">
+          <select id="order" name="order" class="form-control form-control-sm">
+            <option value="desc">최근순</option>
+            <option value="asc">오래된순</option>
+          </select>
+          <select id="option1" name="option1" class="form-control form-control-sm">
+            <option value="all">사이트 전체</option>
+            <option value="ppomppu">뽐뿌</option>
+            <option value="clien">클리앙</option>
+          </select>
+          <select id="option2" name="option2" class="form-control form-control-sm">
+            <option value="all">게시판 전체</option>
+            <option value="ppomppu">뽐뿌게시판</option>
+            <option value="ppomppu4">해외뽐뿌</option>
+            <option value="ppomppu8">알리뽐뿌</option>
+            <option value="allsell">사고팔고</option>
+            <option value="jirum">알뜰구매</option>
+          </select>
+        </span>
+        <span class="col-md-6">
+          <input id="keyword" name="keyword" class="form-control form-control-sm w-75" type="text" placeholder="" aria-label="Search">
+          {{ macros.m_button_group([['globalSearchSearchBtn', '검색'], ['globalSearchResetBtn', '리셋']]) }}
+        </span>
+      </div>
+    </div>
+  </form>
+<div id='page1'></div>
+{{ macros.m_hr_head_top() }}
+{{ macros.m_row_start('0') }}
+{{ macros.m_col(6,  macros.m_strong('제목')) }}
+{{ macros.m_col(3,  macros.m_strong('게시판')) }}
+{{ macros.m_col(2,  macros.m_strong('시간')) }}
+{{ macros.m_col(1,  macros.m_strong('DB')) }}
+{{ macros.m_row_end() }}
+{{ macros.m_hr_head_bottom() }}
+<div id="list_div"></div>
+<div id='page2'></div>
+
+
+<script type="text/javascript">
+    let last_list_option = "{{arg['hotdeal_alarm_item_last_list_option']}}";
+    console.log(last_list_option)
+    
+    $(document).ready(function(){
+      tmp = last_list_option.split('|');
+      if (tmp.length == 5) {
+        $("#order").val(tmp[0]);
+        $("#keyword").val(tmp[2]);
+        $("#option1").val(tmp[3]);
+        $("#option2").val(tmp[4]);
+        globalRequestSearch(tmp[1]);
+      } else {
+        globalRequestSearch('1');
+      }
+    });
+
+    
+function make_list(data) {
+  str = ''
+
+  const site_map = JSON.parse(`{{ site_map }}`.replaceAll('&#39;', '"'));
+  const board_map = JSON.parse(`{{ board_map }}`.replaceAll('&#39;', '"'));
+  for (i in data) {
+    console.log(data[i]);
+    str += j_row_start();
+    let url_prefix = '';
+    switch(data[i]['site_name']){
+      case 'ppomppu':
+        url_prefix = 'https://www.ppomppu.co.kr/zboard/'
+      break;
+      case 'clien' : 
+          url_prefix = 'https://www.clien.net';
+      break;
+    }
+    
+    str += j_col(6, `<a href="${url_prefix}${data[i].url}" target="_blank" rel="noopener noreferer">${data[i].title}</a>`);
+    // str += j_col(2, data[i].url);
+    str += j_col(3, `[${site_map[data[i].site_name]}] ${board_map[data[i].board_name]}`);
+
+    str += j_col(2, data[i].created_time);
+    
+    tmp = ''
+    tmp += j_button('globalDbDeleteItemBtn', '삭제', {'id':data[i].id}, 'primary');
+    tmp += j_button('globalJsonBtn', '정보', {'idx':i}, 'primary');
+    tmp = j_button_group(tmp)
+    str += j_col(1, tmp, 'center')
+
+    str += j_row_end();
+    if (i != data.length -1) str += j_hr();
+  }
+  $("#list_div").html(str);
+}
+
+</script> 
+
+{% endblock %}

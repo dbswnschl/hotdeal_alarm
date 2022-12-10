@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+
+{{ macros.m_button_group([['globalSettingSaveBtn', '설정 저장'], ['globalOneExecuteBtn', '1회 실행'], ['globalImmediatelyExecuteBtn', '즉시 실행']])}}
+{{ macros.m_row_start('5') }}
+{{ macros.m_row_end() }}
+
+<nav>
+    {{ macros.m_tab_head_start() }}
+      {{ macros.m_tab_head('normal', '사이트 설정', true) }}
+      {{ macros.m_tab_head('alarm', '알람 설정', false) }}
+      {{ macros.m_tab_head('auto', '자동', false) }}
+      {{ macros.m_tab_head('db', 'DB', false) }}
+    {{ macros.m_tab_head_end() }}
+</nav>
+
+<form id='setting'>
+    <div class="tab-content" id="nav-tabContent">
+    {{ macros.m_tab_content_start('normal', true) }}
+        {% for site in site_map %}
+            {{ macros.setting_checkbox('use_site_'+site, site_map[site] , desc=None, value=arg['use_site_'+site]) }}
+            <div id="div_setting_{{site}}" style="display: none; margin-left:10%;">
+                {% for board in site_board_map[site] %}
+                    {{ macros.setting_checkbox('use_board_'+site+'_'+board, board_map[board],  value=arg['use_board_'+site+'_'+board]) }}
+                {% endfor %}
+    
+            </div>
+        {% endfor %}
+
+       
+    {{ macros.m_tab_content_end() }} 
+    {{ macros.m_tab_content_start('alarm', false) }} 
+    {{ macros.setting_checkbox('use_hotdeal_alarm', '알람 사용', desc='메시지 ID : bot_hotdeal_alarm', value=arg['use_hotdeal_alarm']) }}
+    {{ macros.setting_checkbox('use_hotdeal_keyword_alarm', '키워드 알람 사용', desc='알람 사용 ON, 키워드 알람 OFF 일 경우 모든 게시물이 알람설정 됩니다.', value=arg['use_hotdeal_keyword_alarm']) }}
+    {{ macros.setting_input_text('hotdeal_alarm_keyword', '알림 받을 키워드 입력', value=arg['hotdeal_alarm_keyword'], col='3', desc=['콤마(,) 로 구분합니다.']) }}
+    {{ macros.setting_input_textarea('alarm_message_template', '알람 내용', value=arg['alarm_message_template'], row=3, desc=['빈 칸인 경우 알람이 울리지 않습니다.', '아래 키워드들을 사용하실 수 있습니다.', '{title} : 게시글 제목', '{site} : 사이트명 ex) 뽐뿌', '{board} : 게시판명 ex) 뽐뿌게시판', '{url} : 게시글 주소', '{mall_url} : 쇼핑몰 주소 (게시글에서 주소가 인식 됐을 때만 표시)' ]) }}
+
+    {{ macros.m_tab_content_end() }}
+    {{ macros.m_tab_content_start('auto', false) }}
+        {{ macros.global_setting_scheduler_button(arg['is_include'], arg['is_running']) }}
+        {{ macros.setting_input_text('basic_interval', '스케쥴링 실행 정보', value=arg['basic_interval'], col='3', desc=['Inverval(minute 단위)이나 Cron 설정']) }}
+        {{ macros.setting_checkbox('basic_auto_start', '시작시 자동실행', value=arg['basic_auto_start'], desc='On : 시작시 자동으로 스케쥴러에 등록됩니다.') }}
+    {{ macros.m_tab_content_end() }}
+    {{ macros.m_tab_content_start('db', false) }}
+      {{ macros.setting_input_text_and_buttons('basic_db_delete_day', 'DB 삭제 기간', [['globalDbDeleteDayBtn', '기간 적용 삭제', [['tag_id','basic_db_delete_day']]], ['globalDbDeleteBtn', '전체 삭제']], value=arg['basic_db_delete_day'], col='6') }} 
+      {{ macros.setting_checkbox('basic_db_auto_delete', 'DB 자동 삭제', value=arg['basic_db_auto_delete'], desc=['On : 기간 적용하여 DB를 자동 삭제합니다.']) }}
+    {{ macros.m_tab_content_end() }} 
+  </div>
+</form>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    {% for site_name in site_map %}
+        $(`#use_site_{{site_name}}`).off('change').on('change',(evt)=>{
+        if ($(evt.currentTarget).prop('checked') === true) {
+            $(`#div_setting_{{site_name}}`).css('display', 'block');
+        }else {
+            console.log(`#div_setting_{{site_name}}`)
+            $(`#div_setting_{{site_name}}`).css('display', 'none');
+        }
+        });
+        $(`#use_site_{{site_name}}`).change();
+    {% endfor %}
+    
+
+});
+
+</script>
+{% endblock %}
