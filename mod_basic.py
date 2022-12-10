@@ -81,8 +81,6 @@ class ModuleBasic(PluginModuleBase):
 
     def process_command(self, command, arg1, arg2, arg3, req):
         ret = {'ret': 'success'}
-        P.logger.info("process_command ")
-        P.logger.info(command)
         if command == 'test':
             ret['status'] = 'warn'
             ret['title'] = '테스트'
@@ -90,7 +88,6 @@ class ModuleBasic(PluginModuleBase):
         return jsonify(ret)
 
     def scheduler_function(self):
-        P.logger.info("scheduler_function ")
         self.scrap_items()
 
     def scrap_detail(self):

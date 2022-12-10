@@ -46,7 +46,6 @@
 
 <script type="text/javascript">
     let last_list_option = "{{arg['hotdeal_alarm_item_last_list_option']}}";
-    console.log(last_list_option)
     
     $(document).ready(function(){
       tmp = last_list_option.split('|');
@@ -68,7 +67,6 @@ function make_list(data) {
   const site_map = JSON.parse(`{{ site_map }}`.replaceAll('&#39;', '"'));
   const board_map = JSON.parse(`{{ board_map }}`.replaceAll('&#39;', '"'));
   for (i in data) {
-    console.log(data[i]);
     str += j_row_start();
     let url_prefix = '';
     switch(data[i]['site_name']){
