@@ -21,7 +21,7 @@ board_map = {
 }
 site_board_map = {
     'ppomppu': ['ppomppu', 'ppomppu4', 'ppomppu8'],
-    'clien': ['allsell'],
+    'clien': ['allsell', 'jirum'],
     'ruriweb': ['1020', '600004']
 }
 
