@@ -43,7 +43,7 @@ class ModuleBasic(PluginModuleBase):
         super(ModuleBasic, self).__init__(P, name='basic',
                                           first_menu='setting', scheduler_desc="핫딜 알람")
         self.db_default = {
-            f'db_version': '1.1',
+            f'db_version': '1.4',
             f'{self.name}_auto_start': 'False',
             f'{self.name}_interval': '1',
             f'{self.name}_db_delete_day': '7',
@@ -62,6 +62,7 @@ class ModuleBasic(PluginModuleBase):
             'use_board_ruriweb_600004': 'False',
             'use_hotdeal_alarm': 'False',
             'use_hotdeal_keyword_alarm': 'False',
+            'use_hotdeal_keyword_alarm_dist' : 'False',
             'hotdeal_alarm_keyword': '',
             'alarm_message_template': '`{title}`\n{url}\n{mall_url}',
             'selenium_remote_address': ''
@@ -198,20 +199,35 @@ class ModuleBasic(PluginModuleBase):
                 url = get_url_prefix(site_name=item.site_name)+item.url
                 mall_url = item.mall_url if item.mall_url and len(
                     item.mall_url) > 0 else ''
-                is_send = True
-                if P.ModelSetting.get_bool('use_hotdeal_keyword_alarm'):
-                    keywords = P.ModelSetting.get(
-                        'hotdeal_alarm_keyword').split(',')
+                is_send = False
+                is_dist_send = False
+
+                keywords = P.ModelSetting.get('hotdeal_alarm_keyword').split(',')
+                if P.ModelSetting.get_bool('use_hotdeal_alarm'):
+                    is_send = True
+                else:
                     is_send = False
-                    for keyword in keywords:
+                    is_dist_send = False
+                for keyword in keywords:
+                    if P.ModelSetting.get_bool('use_hotdeal_keyword_alarm'):
                         if len(keyword) > 0 and keyword in title:
                             is_send = True
-                            break
+                    if P.ModelSetting.get_bool('use_hotdeal_keyword_alarm_dist'):
+                        if len(keyword) > 0 and keyword in title:
+                            is_dist_send = True
+                        
+
                 if is_send is True:
                     msg = msg_template
                     msg = msg.replace('{title}', title).replace('{site}', site).replace(
                         '{board}', board).replace('{mall_url}', mall_url).replace('{url}', url)
                     ToolNotify.send_message(
-                        msg, message_id=f"{P.package_name}")
+                        msg, message_id=f"bot_{P.package_name}")
+                if is_dist_send is True:
+                    msg = msg_template
+                    msg = msg.replace('{title}', title).replace('{site}', site).replace(
+                        '{board}', board).replace('{mall_url}', mall_url).replace('{url}', url)
+                    ToolNotify.send_message(
+                        msg, message_id=f"bot_{P.package_name}_keyword")
             item.alarm_status = True
             ModelItem.save(item)
