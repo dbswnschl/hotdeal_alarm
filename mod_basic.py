@@ -43,7 +43,7 @@ class ModuleBasic(PluginModuleBase):
         super(ModuleBasic, self).__init__(P, name='basic',
                                           first_menu='setting', scheduler_desc="핫딜 알람")
         self.db_default = {
-            f'db_version': '1.4',
+            f'db_version': '1.5',
             f'{self.name}_auto_start': 'False',
             f'{self.name}_interval': '1',
             f'{self.name}_db_delete_day': '7',
