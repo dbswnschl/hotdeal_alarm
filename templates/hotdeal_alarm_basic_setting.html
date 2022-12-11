@@ -32,7 +32,7 @@
     {{ macros.m_tab_content_start('alarm', false) }} 
     {{ macros.setting_checkbox('use_hotdeal_alarm', '전체 알람 사용', desc='메시지 ID : bot_hotdeal_alarm', value=arg['use_hotdeal_alarm']) }}
     {{ macros.setting_checkbox('use_hotdeal_keyword_alarm', '키워드 알람 사용', desc='전체 알람 사용 ON, 키워드 알람 OFF 일 경우 모든 게시물이 알람설정 됩니다.', value=arg['use_hotdeal_keyword_alarm']) }}
-    {{ macros.setting_checkbox('use_hotdeal_keyword_alarm_dist', '키워드 따로 알람받기', desc='키워드 알람 메시지 ID : bot_hotdeal_alarm_keyword', value=arg['use_hotdeal_keyword_dist']) }}
+    {{ macros.setting_checkbox('use_hotdeal_keyword_alarm_dist', '키워드 따로 알람받기', desc='키워드 알람 메시지 ID : bot_hotdeal_alarm_keyword', value=arg['use_hotdeal_keyword_alarm_dist']) }}
 
     {{ macros.setting_input_text('hotdeal_alarm_keyword', '알림 받을 키워드 입력', value=arg['hotdeal_alarm_keyword'], col='3', desc=['콤마(,) 로 구분합니다.']) }}
     {{ macros.setting_input_textarea('alarm_message_template', '알람 내용', value=arg['alarm_message_template'], row=3, desc=['빈 칸인 경우 알람이 울리지 않습니다.', '아래 키워드들을 사용하실 수 있습니다.', '{title} : 게시글 제목', '{site} : 사이트명 ex) 뽐뿌', '{board} : 게시판명 ex) 뽐뿌게시판', '{url} : 게시글 주소', '{mall_url} : 쇼핑몰 주소 (게시글에서 주소가 인식 됐을 때만 표시)' ]) }}
