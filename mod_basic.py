@@ -195,7 +195,7 @@ class ModuleBasic(PluginModuleBase):
             if P.ModelSetting.get_bool('use_hotdeal_alarm'):
                 title = item.title.replace('&gt;', '>').replace('&lt;', '<')
                 site = site_map[item.site_name]
-                board = item.board_name
+                board = board_map[item.board_name]
                 url = get_url_prefix(site_name=item.site_name)+item.url
                 mall_url = item.mall_url if item.mall_url and len(
                     item.mall_url) > 0 else ''
