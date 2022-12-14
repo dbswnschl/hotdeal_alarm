@@ -14,13 +14,14 @@ board_map = {
     'ppomppu': '뽐뿌게시판',
     'ppomppu4': '해외뽐뿌',
     'ppomppu8': '알리뽐뿌',
+    'money': '재태크포럼',
     'allsell': '사고팔고',
     'jirum': '알뜰구매',
     '1020': '핫딜/예판 유저',
     '600004': '핫딜/예판 업체'
 }
 site_board_map = {
-    'ppomppu': ['ppomppu', 'ppomppu4', 'ppomppu8'],
+    'ppomppu': ['ppomppu', 'ppomppu4', 'ppomppu8', 'money'],
     'clien': ['allsell', 'jirum'],
     'ruriweb': ['1020', '600004']
 }
@@ -43,7 +44,7 @@ class ModuleBasic(PluginModuleBase):
         super(ModuleBasic, self).__init__(P, name='basic',
                                           first_menu='setting', scheduler_desc="핫딜 알람")
         self.db_default = {
-            f'db_version': '1.5',
+            f'db_version': '1.6',
             f'{self.name}_auto_start': 'False',
             f'{self.name}_interval': '1',
             f'{self.name}_db_delete_day': '7',
@@ -55,6 +56,7 @@ class ModuleBasic(PluginModuleBase):
             'use_board_ppomppu_ppomppu': 'False',
             'use_board_ppomppu_ppomppu4': 'False',
             'use_board_ppomppu_ppomppu8': 'False',
+            'use_board_ppomppu_money': 'False',
             'use_board_clien_allsell': 'False',
             'use_board_clien_jirum': 'False',
             'use_site_ruriweb': 'False',
@@ -125,7 +127,7 @@ class ModuleBasic(PluginModuleBase):
         sess = requests.session()
         # get model settings.
         if P.ModelSetting.get('use_site_ppomppu') == 'True':
-            boards = ['ppomppu', 'ppomppu4', 'ppomppu8']
+            boards = ['ppomppu', 'ppomppu4', 'ppomppu8', 'money']
             regex = r'href=\"(?P<url>.+)\"\s+><font class=list_title>(?P<title>.+)<\/font>'
             for board in boards:
                 if P.ModelSetting.get(f'use_board_ppomppu_{board}') == 'True':
