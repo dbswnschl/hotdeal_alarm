@@ -8,7 +8,8 @@ from tool import ToolNotify
 site_map = {
     'ppomppu': '뽐뿌',
     'clien': '클리앙',
-    'ruriweb': '루리웹'
+    'ruriweb': '루리웹',
+    'coolenjoy' : '쿨엔조이'
 }
 board_map = {
     'ppomppu': '뽐뿌게시판',
@@ -18,12 +19,13 @@ board_map = {
     'allsell': '사고팔고',
     'jirum': '알뜰구매',
     '1020': '핫딜/예판 유저',
-    '600004': '핫딜/예판 업체'
+    '600004': '핫딜/예판 업체',
 }
 site_board_map = {
     'ppomppu': ['ppomppu', 'ppomppu4', 'ppomppu8', 'money'],
     'clien': ['allsell', 'jirum'],
-    'ruriweb': ['1020', '600004']
+    'ruriweb': ['1020', '600004'],
+    'coolenjoy' : ['jirum']
 }
 
 
@@ -35,6 +37,8 @@ def get_url_prefix(site_name):
         url_prefix = 'https://www.clien.net'
     elif site_name == 'ruriweb':
         url_prefix = ''
+    elif site_name == 'coolenjoy':
+        url_prefix = ''
 
     return url_prefix
 
@@ -44,7 +48,7 @@ class ModuleBasic(PluginModuleBase):
         super(ModuleBasic, self).__init__(P, name='basic',
                                           first_menu='setting', scheduler_desc="핫딜 알람")
         self.db_default = {
-            f'db_version': '1.6',
+            f'db_version': '1.8',
             f'{self.name}_auto_start': 'False',
             f'{self.name}_interval': '1',
             f'{self.name}_db_delete_day': '7',
@@ -62,6 +66,8 @@ class ModuleBasic(PluginModuleBase):
             'use_site_ruriweb': 'False',
             'use_board_ruriweb_1020': 'False',
             'use_board_ruriweb_600004': 'False',
+            'use_site_coolenjoy': 'False',
+            'use_board_coolenjoy_jirum': 'False',
             'use_hotdeal_alarm': 'False',
             'use_hotdeal_keyword_alarm': 'False',
             'use_hotdeal_keyword_alarm_dist' : 'False',
@@ -108,6 +114,8 @@ class ModuleBasic(PluginModuleBase):
                 regex = r'구매링크</span>.+>(?P<mall_url>.+)</a>'
             elif item.site_name == 'ruriweb':
                 regex = r'<div class=\"source_url\">원본출처.+<a href=\".+\">(?P<mall_url>.+)</a>'
+            elif item.site_name == 'coolenjoy':
+                regex = r'alt=\"관련링크\">\s+<strong>(?P<mall_url>.+)</strong>'
             if regex:
                 sess = requests.session()
                 getdata = sess.get(get_url_prefix(item.site_name) + item.url)
@@ -172,6 +180,19 @@ class ModuleBasic(PluginModuleBase):
                     for matchNum, match in enumerate(matches, start=1):
                         new_obj = match.groupdict()
                         new_obj['site'] = 'ruriweb'
+                        new_obj['board'] = board
+                        ret['data'].append(new_obj)
+        if P.ModelSetting.get('use_site_coolenjoy') == 'True':
+            boards = ['jirum']
+            for board in boards:
+                regex = r'<td class=\"td_subject\">\s+<a href=\"(?P<url>.+)\">\s+(?:<font color=.+?>)?(?P<title>.+?)(?:</font>)?\s+<span class=\"sound_only\"'
+                url = f'https://coolenjoy.net/bbs/{board}'
+                if P.ModelSetting.get(f'use_board_coolenjoy_{board}') == 'True':
+                    getdata = sess.get(url)
+                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
+                    for matchNum, match in enumerate(matches, start=1):
+                        new_obj = match.groupdict()
+                        new_obj['site'] = 'coolenjoy'
                         new_obj['board'] = board
                         ret['data'].append(new_obj)
 
