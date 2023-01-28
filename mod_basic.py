@@ -3,13 +3,16 @@ from .model import ModelItem
 import requests
 import re
 import time
+import cloudscraper
+import html
 from tool import ToolNotify
 
 site_map = {
     'ppomppu': '뽐뿌',
     'clien': '클리앙',
     'ruriweb': '루리웹',
-    'coolenjoy' : '쿨엔조이'
+    'coolenjoy' : '쿨엔조이',
+    'quasarzone' : '퀘이사존'
 }
 board_map = {
     'ppomppu': '뽐뿌게시판',
@@ -20,12 +23,14 @@ board_map = {
     'jirum': '알뜰구매',
     '1020': '핫딜/예판 유저',
     '600004': '핫딜/예판 업체',
+    'qb_saleinfo': '지름/할인정보'
 }
 site_board_map = {
     'ppomppu': ['ppomppu', 'ppomppu4', 'ppomppu8', 'money'],
     'clien': ['allsell', 'jirum'],
     'ruriweb': ['1020', '600004'],
-    'coolenjoy' : ['jirum']
+    'coolenjoy' : ['jirum'],
+    'quasarzone': ['qb_saleinfo']
 }
 
 
@@ -39,6 +44,8 @@ def get_url_prefix(site_name):
         url_prefix = ''
     elif site_name == 'coolenjoy':
         url_prefix = ''
+    elif site_name == 'quasarzone':
+        url_prefix = 'https://quasarzone.com'
 
     return url_prefix
 
@@ -68,6 +75,8 @@ class ModuleBasic(PluginModuleBase):
             'use_board_ruriweb_600004': 'False',
             'use_site_coolenjoy': 'False',
             'use_board_coolenjoy_jirum': 'False',
+            'use_site_quasarzone': 'False',
+            'use_board_quasarzone_qb_saleinfo': 'False',
             'use_hotdeal_alarm': 'False',
             'use_hotdeal_keyword_alarm': 'False',
             'use_hotdeal_keyword_alarm_dist' : 'False',
@@ -116,13 +125,20 @@ class ModuleBasic(PluginModuleBase):
                 regex = r'<div class=\"source_url\">원본출처.+<a href=\".+\">(?P<mall_url>.+)</a>'
             elif item.site_name == 'coolenjoy':
                 regex = r'alt=\"관련링크\">\s+<strong>(?P<mall_url>.+)</strong>'
+            elif item.site_name == 'quasarzone':
+                regex = r'<th>링크</th>\s+<td><a href=\".+\"\s+>(?P<mall_url>.+)</a>'
             if regex:
-                sess = requests.session()
-                getdata = sess.get(get_url_prefix(item.site_name) + item.url)
+                if item.site_name == 'quasarzone':
+                    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'android', 'desktop': False})
+                    getdata = scraper.get(get_url_prefix(item.site_name) + item.url)
+                else:
+                    sess = requests.session()
+                    getdata = sess.get(get_url_prefix(item.site_name) + item.url)
+
                 find_result = re.compile(regex).search(getdata.text)
                 if find_result:
                     mall_url = find_result.groupdict().get('mall_url', '')
-            item.mall_url = mall_url
+            item.mall_url = html.unescape(mall_url)
             ModelItem.save(item)
         return ret
 
@@ -182,6 +198,7 @@ class ModuleBasic(PluginModuleBase):
                         new_obj['site'] = 'ruriweb'
                         new_obj['board'] = board
                         ret['data'].append(new_obj)
+
         if P.ModelSetting.get('use_site_coolenjoy') == 'True':
             boards = ['jirum']
             for board in boards:
@@ -193,6 +210,21 @@ class ModuleBasic(PluginModuleBase):
                     for matchNum, match in enumerate(matches, start=1):
                         new_obj = match.groupdict()
                         new_obj['site'] = 'coolenjoy'
+                        new_obj['board'] = board
+                        ret['data'].append(new_obj)
+
+        if P.ModelSetting.get('use_site_quasarzone') == 'True':
+            boards = ['qb_saleinfo']
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'android', 'desktop': False})
+            for board in boards:
+                regex = r'<p class=\"tit\">\s+<a href=\"(?P<url>.+)\"\s+class=.+>\s+.+\s+(?:<span class=\"ellipsis-with-reply-cnt\">)?(?P<title>.+?)(?:</span>)'
+                url = f'https://quasarzone.com/bbs/{board}'
+                if P.ModelSetting.get(f'use_board_quasarzone_{board}') == 'True':
+                    getdata = scraper.get(url)
+                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
+                    for matchNum, match in enumerate(matches, start=1):
+                        new_obj = match.groupdict()
+                        new_obj['site'] = 'quasarzone'
                         new_obj['board'] = board
                         ret['data'].append(new_obj)
 
@@ -215,7 +247,7 @@ class ModuleBasic(PluginModuleBase):
         if msg_template is None or len(msg_template) == 0:
             return
         for item in items:
-            if P.ModelSetting.get_bool('use_hotdeal_alarm'):
+            if P.ModelSetting.get_bool('use_hotdeal_alarm') or P.ModelSetting.get_bool('use_hotdeal_keyword_alarm'):
                 title = item.title.replace('&gt;', '>').replace('&lt;', '<')
                 site = site_map[item.site_name]
                 board = board_map[item.board_name]
@@ -233,10 +265,10 @@ class ModuleBasic(PluginModuleBase):
                     is_dist_send = False
                 for keyword in keywords:
                     if P.ModelSetting.get_bool('use_hotdeal_keyword_alarm'):
-                        if len(keyword) > 0 and keyword in title:
+                        if len(keyword) > 0 and keyword.lower() in title.lower():
                             is_send = True
                     if P.ModelSetting.get_bool('use_hotdeal_keyword_alarm_dist'):
-                        if len(keyword) > 0 and keyword in title:
+                        if len(keyword) > 0 and keyword.lower() in title.lower():
                             is_dist_send = True
                         
 
