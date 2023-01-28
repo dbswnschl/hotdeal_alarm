@@ -226,6 +226,7 @@ class ModuleBasic(PluginModuleBase):
                         new_obj = match.groupdict()
                         new_obj['site'] = 'quasarzone'
                         new_obj['board'] = board
+                        new_obj['url'] = 'https://quasarzone.com' + new_obj['url'] if new_obj['url'].startswith('/') else new_obj['url']
                         ret['data'].append(new_obj)
 
         for row in ret['data']:
@@ -233,7 +234,7 @@ class ModuleBasic(PluginModuleBase):
                 'site_name': row['site'],
                 'board_name': row['board'],
                 'title': row['title'],
-                'url': 'https://quasarzone.com/' + row['url'] if 'https://quasarzone.com/' not in row['url'] else row['url']
+                'url':  row['url']
             })
         self.process_discord_data()
         return ret
