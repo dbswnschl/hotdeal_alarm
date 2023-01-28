@@ -55,7 +55,7 @@ class ModuleBasic(PluginModuleBase):
         super(ModuleBasic, self).__init__(P, name='basic',
                                           first_menu='setting', scheduler_desc="핫딜 알람")
         self.db_default = {
-            f'db_version': '1.8',
+            f'db_version': '1.9',
             f'{self.name}_auto_start': 'False',
             f'{self.name}_interval': '1',
             f'{self.name}_db_delete_day': '7',
@@ -233,7 +233,7 @@ class ModuleBasic(PluginModuleBase):
                 'site_name': row['site'],
                 'board_name': row['board'],
                 'title': row['title'],
-                'url': row['url']
+                'url': 'https://quasarzone.com/' + row['url'] if 'https://quasarzone.com/' not in row['url'] else row['url']
             })
         self.process_discord_data()
         return ret
