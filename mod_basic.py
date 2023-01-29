@@ -45,7 +45,7 @@ def get_url_prefix(site_name):
     elif site_name == 'coolenjoy':
         url_prefix = ''
     elif site_name == 'quasarzone':
-        url_prefix = 'https://quasarzone.com'
+        url_prefix = ''
 
     return url_prefix
 
@@ -240,7 +240,11 @@ class ModuleBasic(PluginModuleBase):
         return ret
 
     def process_discord_data(self):
-        self.scrap_detail()
+        try:
+            self.scrap_detail()
+        except Exception as e:
+            P.logger.error('Exception:%s', e)
+            P.logger.error(traceback.format_exc())
         items = ModelItem.get_alarm_target_list()
         if items is None or len(items) == 0:
             return
