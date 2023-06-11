@@ -92,7 +92,7 @@ $(document).ready(function(){
         'serviceWorker' in navigator &&
         'PushManager' in window;
     if (!isSupported()){
-        alert(window.Notification);
+        alert("[웹앱이 아님] web push 기능을 사용하시려면, 웹앱 상태로 접근이 필요합니다. \n(브라우저 홈 화면에 추가 기능 사용)");
 
     } 
     {% for site_name in site_map %}
