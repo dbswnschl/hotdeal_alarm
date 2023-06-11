@@ -35,7 +35,7 @@
 
     {{ macros.setting_checkbox('use_hotdeal_web_push', '웹푸시 사용', desc='웹브라우저의 푸시 기능을 사용합니다.', value=arg['use_hotdeal_web_push']) }}
     {{ macros.setting_buttons([ ['btnWebPushInit', '(최초1회실행필요) push key 발급'], ['btnAllowWebPushThisDevice', '(기기당1회실행) 현재 접속한 기기에서 푸시 알람 받기' ] ]) }}
-    {{ macros.setting_input_text('web_push_public_key','웹 푸시용 공개 키',value=arg['web_push_public_key']) }}
+    {{ macros.setting_input_text('web_push_public_key','웹 푸시용 공개 키',value=arg['web_push_public_key'],desc='push key 발급이 안되는 경우 터미널에 접속하여 mkdir -p /data/web_push ; cd /data/web_push ; /usr/local/bin/vapid --applicationServerKey --gen 를 입력 후 결과로 나온 Application Server Key 값을 넣고 저장해주세요.') }}
     {{ macros.setting_input_text_and_buttons('web_push_subscription','web_push_subscription', [ ['btnResetWebPush', '웹푸시 구독정보 리셋'] ],value=arg['web_push_subscription'] ) }}
 
 
@@ -92,8 +92,7 @@ $(document).ready(function(){
         'serviceWorker' in navigator &&
         'PushManager' in window;
     if (!isSupported()){
-        alert("[웹앱이 아님] web push 기능을 사용하시려면, 웹앱 상태로 접근이 필요합니다. \n(브라우저 홈 화면에 추가 기능 사용)");
-
+        alert("[웹앱이 아님] web push 기능을 사용하시려면, 웹앱 상태로 접근이 필요합니다.");
     } 
     {% for site_name in site_map %}
         $(`#use_site_{{site_name}}`).off('change').on('change',(evt)=>{
@@ -230,7 +229,7 @@ $(document).ready(function(){
                 }
             });
     })
-    $('#web_push_public_key').prop('disabled', true);
+    // $('#web_push_public_key').prop('disabled', true);
     $('#web_push_subscription').prop('disabled', true);
     $('#alarm > div:nth-child(2) > div.col-sm-9 > div:nth-child(2) > em').html(`웹브라우저의 푸시 기능을 사용합니다.[ <strong style="color:blue">${JSON.parse($('#web_push_subscription').val()).length}</strong> 기기 등록됨 ] `);
 
