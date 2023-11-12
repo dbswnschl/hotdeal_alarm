@@ -159,7 +159,7 @@ class ModuleBasic(PluginModuleBase):
         # get model settings.
         if P.ModelSetting.get('use_site_ppomppu') == 'True':
             boards = ['ppomppu', 'ppomppu4', 'ppomppu8', 'money']
-            regex = r'href=\"(?P<url>.+)\"\s+><font class=list_title>(?P<title>.+)<\/font>'
+            regex = r'href=\"(?P<url>.+)\"\s+><font class=list_title>(?:<span class=\".+\">)?(?P<title>.+)<\/font>'
             for board in boards:
                 if P.ModelSetting.get(f'use_board_ppomppu_{board}') == 'True':
 
