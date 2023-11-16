@@ -240,7 +240,7 @@ class ModuleBasic(PluginModuleBase):
             ModelItem.update({
                 'site_name': row['site'],
                 'board_name': row['board'],
-                'title': row['title'],
+                'title': row['title'].replace('</span>',''),
                 'url':  row['url']
             })
         self.process_discord_data()
