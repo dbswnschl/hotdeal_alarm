@@ -159,7 +159,7 @@ class ModuleBasic(PluginModuleBase):
         # get model settings.
         if P.ModelSetting.get('use_site_ppomppu') == 'True':
             boards = ['ppomppu', 'ppomppu4', 'ppomppu8', 'money']
-            regex = r'title\" href=\"(?P<url>view\.php.+?)\"\s?>.+>(?P<title>.+)</span></a>'
+            regex = r'title[\"\'] href=\"(?P<url>view\.php.+?)\"\s?>.+>(?P<title>.+)</span></a>'
             for board in boards:
                 if P.ModelSetting.get(f'use_board_ppomppu_{board}') == 'True':
 
