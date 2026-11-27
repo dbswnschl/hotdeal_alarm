@@ -1,8 +1,13 @@
 from .setup import *
 from .model import ModelItem
+from urllib.parse import parse_qs, urlsplit
+from lxml import html as lxml_html
 import requests
 import re
 import time
+from threading import Lock
+from urllib3.util.retry import Retry
+from urllib3.exceptions import InvalidHeader
 import cloudscraper
 from pywebpush import webpush, WebPushException
 import html
@@ -36,6 +41,53 @@ site_board_map = {
     'coolenjoy' : ['jirum'],
     'quasarzone': ['qb_saleinfo']
 }
+
+
+PPOMPPU_INTERVAL = 5
+PPOMPPU_DETAIL_LIMIT = 4
+_ppomppu_lock = Lock()
+_ppomppu_next_request = 0
+_ppomppu_retry_at = 0
+
+
+class PpomppuCooldown(Exception):
+    pass
+
+
+def ppomppu_page(session, path):
+    global _ppomppu_next_request, _ppomppu_retry_at
+    with _ppomppu_lock:
+        now = time.monotonic()
+        if now < _ppomppu_retry_at:
+            raise PpomppuCooldown('server cooldown active')
+        time.sleep(max(0, _ppomppu_next_request - now))
+        _ppomppu_next_request = time.monotonic() + PPOMPPU_INTERVAL
+        response = session.get(get_url_prefix('ppomppu') + path,
+                               headers={'User-Agent': 'hotdeal-alarm/1.0'}, timeout=15)
+        if response.status_code == 429:
+            try:
+                delay = Retry().get_retry_after(response)
+            except InvalidHeader:
+                delay = None
+            delay = max(60, delay or 300)
+            _ppomppu_retry_at = time.monotonic() + delay
+            P.logger.warning('ppomppu HTTP 429: pausing requests for %s seconds', delay)
+            raise PpomppuCooldown('server rate limit')
+    response.raise_for_status()
+    return lxml_html.fromstring(response.text)
+
+
+def ppomppu_rows(page, board):
+    rows = []
+    for anchor in page.find_class('baseList-title'):
+        link = urlsplit(anchor.get('href', ''))
+        query = parse_qs(link.query)
+        number = query.get('no', [''])[0]
+        if (link.path in ('view.php', '/zboard/view.php') and query.get('id') == [board]
+                and number.isdecimal()):
+            rows.append(dict(site='ppomppu', board=board, title=anchor.text_content().strip(),
+                             url=f'view.php?id={board}&no={number}'))
+    return rows
 
 
 def get_url_prefix(site_name):
@@ -122,10 +174,28 @@ class ModuleBasic(PluginModuleBase):
         P.logger.info("scrap_details")
         regex = None
         items = ModelItem.get_non_shopping_mall_lsit()
+        detail_budget = PPOMPPU_DETAIL_LIMIT
         for item in items:
             mall_url = ''
             if item.site_name == 'ppomppu':
-                regex = r'div class=wordfix>링크: \<a .+\>(?P<mall_url>.+)\</a\>'
+                if detail_budget == 0:
+                    continue
+                detail_budget -= 1
+                try:
+                    page = ppomppu_page(requests, item.url)
+                except PpomppuCooldown:
+                    detail_budget = 0
+                    continue
+                except requests.RequestException as error:
+                    P.logger.warning('ppomppu detail %s: %s', item.url, error)
+                    continue
+                links = page.xpath('//li[contains(@class, "topTitle-link")]/a[@href]')
+                if links:
+                    label = links[0].text_content().strip()
+                    mall_url = label if label.startswith(('http://', 'https://')) and '...' not in label else links[0].get('href')
+                item.mall_url = mall_url
+                ModelItem.save(item)
+                continue
             elif item.site_name == 'clien':
                 regex = r'구매링크</span>.+>(?P<mall_url>.+)</a>'
             elif item.site_name == 'ruriweb':
@@ -159,18 +229,21 @@ class ModuleBasic(PluginModuleBase):
         # get model settings.
         if P.ModelSetting.get('use_site_ppomppu') == 'True':
             boards = ['ppomppu', 'ppomppu4', 'ppomppu8', 'money']
-            regex = r'title[\"\'] href=\"(?P<url>view\.php.+?)\"\s*>.+>(?P<title>.+)</span></a>'
             for board in boards:
-                if P.ModelSetting.get(f'use_board_ppomppu_{board}') == 'True':
-
-                    getdata = sess.get(
-                        f'https://www.ppomppu.co.kr/zboard/zboard.php?id={board}')
-                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
-                    for matchNum, match in enumerate(matches, start=1):
-                        new_obj = match.groupdict()
-                        new_obj['site'] = 'ppomppu'
-                        new_obj['board'] = board
-                        ret['data'].append(new_obj)
+                if P.ModelSetting.get(f'use_board_ppomppu_{board}') != 'True':
+                    continue
+                try:
+                    page = ppomppu_page(sess, f'zboard.php?id={board}')
+                    rows = ppomppu_rows(page, board)
+                    if not rows:
+                        raise ValueError('no board posts found')
+                    ret['data'].extend(rows)
+                except PpomppuCooldown:
+                    ret['status'] = 'warning'
+                    break
+                except (requests.RequestException, ValueError) as error:
+                    P.logger.warning('ppomppu list %s: %s', board, error)
+                    ret['status'] = 'warning'
 
         if P.ModelSetting.get('use_site_clien') == 'True':
             boards = ['allsell', 'jirum']
