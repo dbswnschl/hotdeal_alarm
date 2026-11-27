@@ -1,16 +1,14 @@
 from .setup import *
 from .model import ModelItem
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 from lxml import html as lxml_html
 import requests
-import re
+from lxml.etree import ParserError
 import time
 from threading import Lock
 from urllib3.util.retry import Retry
 from urllib3.exceptions import InvalidHeader
-import cloudscraper
 from pywebpush import webpush, WebPushException
-import html
 import os
 import json
 from tool import ToolNotify
@@ -106,6 +104,68 @@ def get_url_prefix(site_name):
     return url_prefix
 
 
+BOARD_URLS = {
+    'clien': {'allsell': 'https://www.clien.net/service/group/allsell',
+              'jirum': 'https://www.clien.net/service/board/jirum'},
+    'ruriweb': {board: f'https://bbs.ruliweb.com/market/board/{board}' for board in ('1020', '600004')},
+    'coolenjoy': {'jirum': 'https://coolenjoy.net/bbs/jirum'},
+    'quasarzone': {'qb_saleinfo': 'https://quasarzone.com/bbs/qb_saleinfo'},
+}
+
+TITLE_SELECTORS = {
+    'clien': '//*[@data-role="list-title-text"]',
+    'ruriweb': '//a[contains(@class,"subject_link") and not(ancestor::tr[contains(@class,"notice")])]',
+    'coolenjoy': '//a[contains(@class,"na-subject")]',
+    'quasarzone': '//p[contains(@class,"tit")]/a[@href]',
+}
+
+LINK_SELECTORS = {
+    'clien': '//span[normalize-space()="구매링크"]/following-sibling::a | //article//div[@class="content"]//a[@class="url"]',
+    'ruriweb': '//div[contains(@class,"source_url")]//a[@href]',
+    'coolenjoy': '//a[contains(@href,"/bbs/link2.php") or contains(@href,"/bbs/link.php")]',
+    'quasarzone': '//th[starts-with(normalize-space(),"링크")]/following-sibling::td//a[@href]',
+}
+
+
+def community_page(session, url):
+    response = session.get(url, headers={'User-Agent': 'hotdeal-alarm/1.0'}, timeout=15)
+    response.raise_for_status()
+    return lxml_html.fromstring(response.content.decode('utf-8', errors='replace'))
+
+
+def community_rows(page, site, board):
+    base = BOARD_URLS[site][board]
+    rows = {}
+    for node in page.xpath(TITLE_SELECTORS[site]):
+        anchor = node if node.tag == 'a' else node.getparent()
+        href = anchor.get('href', '')
+        parsed = urlsplit(urljoin(base, href))
+        if parsed.hostname != urlsplit(base).hostname or not parsed.path.rsplit('/', 1)[-1].isdecimal():
+            continue
+        if site == 'quasarzone' and not parsed.path.startswith(f'/bbs/{board}/views/'):
+            continue
+        for count in node.find_class('num_reply'):
+            count.drop_tree()
+        label = node.find_class('ellipsis-with-reply-cnt')
+        title = ' '.join((label[0] if label else node).text_content().split())
+        url = href if site == 'clien' else urljoin(base, href)
+        if title:
+            rows[url] = dict(site=site, board=board, title=title, url=url)
+    return list(rows.values())
+
+
+def community_mall_url(page, site, url):
+    for anchor in page.xpath(LINK_SELECTORS[site]):
+        target = urljoin(url, anchor.get('href', ''))
+        if site in ('coolenjoy', 'ruriweb'):
+            label = (anchor.text or '').strip()
+            if label.startswith(('https://', 'http://')) and not label.endswith(('...', '…')):
+                target = label
+        if target != url and urlsplit(target).scheme in ('https', 'http'):
+            return target
+    return ''
+
+
 class ModuleBasic(PluginModuleBase):
     def __init__(self, P):
         super(ModuleBasic, self).__init__(P, name='basic',
@@ -172,7 +232,7 @@ class ModuleBasic(PluginModuleBase):
             'status': 'success'
         }
         P.logger.info("scrap_details")
-        regex = None
+        budgets = {site: 2 for site in BOARD_URLS}
         items = ModelItem.get_non_shopping_mall_lsit()
         detail_budget = PPOMPPU_DETAIL_LIMIT
         for item in items:
@@ -196,26 +256,23 @@ class ModuleBasic(PluginModuleBase):
                 item.mall_url = mall_url
                 ModelItem.save(item)
                 continue
-            elif item.site_name == 'clien':
-                regex = r'구매링크</span>.+>(?P<mall_url>.+)</a>'
-            elif item.site_name == 'ruriweb':
-                regex = r'<div class=\"source_url\">원본출처.+<a href=\".+\">(?P<mall_url>.+)</a>'
-            elif item.site_name == 'coolenjoy':
-                regex = r'alt=\"관련링크\">\s+<strong>(?P<mall_url>.+)</strong>'
-            elif item.site_name == 'quasarzone':
-                regex = r'<th>링크</th>\s+<td><a href=\".+\"\s+>(?P<mall_url>.+)</a>'
-            if regex:
-                if item.site_name == 'quasarzone':
-                    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'android', 'desktop': False})
-                    getdata = scraper.get(get_url_prefix(item.site_name) + item.url)
-                else:
-                    sess = requests.session()
-                    getdata = sess.get(get_url_prefix(item.site_name) + item.url)
-
-                find_result = re.compile(regex).search(getdata.text)
-                if find_result:
-                    mall_url = find_result.groupdict().get('mall_url', '')
-            item.mall_url = html.unescape(mall_url)
+            site = item.site_name
+            if site not in BOARD_URLS or budgets[site] == 0:
+                continue
+            budgets[site] -= 1
+            url = get_url_prefix(site) + item.url
+            try:
+                page = community_page(requests, url)
+                item.mall_url = community_mall_url(page, site, url)
+            except (requests.RequestException, ParserError, ValueError) as error:
+                P.logger.warning('%s detail %s: %s', site, item.url, error)
+                response = getattr(error, 'response', None)
+                if response is not None and response.status_code in (404, 410):
+                    item.mall_url = ''
+                    ModelItem.save(item)
+                elif response is None or response.status_code in (403, 429):
+                    budgets[site] = 0
+                continue
             ModelItem.save(item)
         return ret
 
@@ -245,69 +302,21 @@ class ModuleBasic(PluginModuleBase):
                     P.logger.warning('ppomppu list %s: %s', board, error)
                     ret['status'] = 'warning'
 
-        if P.ModelSetting.get('use_site_clien') == 'True':
-            boards = ['allsell', 'jirum']
-
-            for board in boards:
-                if board == 'allsell':
-                    regex = r' class=\"list_subject\" href=\"(?P<url>.+?)\" .+\s+.+\s+.+?data-role=\"list-title-text\"\stitle=\"(?P<title>.+)\"\>'
-                    url = f'https://www.clien.net/service/group/{board}'
-                elif board == 'jirum':
-                    regex = r'<span class=\"list_subject\" data-role=\"cut-string\" title=\"(?P<title>.+)\">\s+<a href=\"(?P<url>.+?)\"\s'
-                    url = f'https://www.clien.net/service/board/{board}'
-
-                if P.ModelSetting.get(f'use_board_clien_{board}') == 'True':
-                    getdata = sess.get(url)
-                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
-                    for matchNum, match in enumerate(matches, start=1):
-                        new_obj = match.groupdict()
-                        new_obj['site'] = 'clien'
-                        new_obj['board'] = board
-                        ret['data'].append(new_obj)
-
-        if P.ModelSetting.get('use_site_ruriweb') == 'True':
-            boards = ['1020', '600004']
-            for board in boards:
-                regex = r'<a class=\"deco\" href=\"(?P<url>.+)\"\>(?P<title>.+)</a>'
-                url = f'https://bbs.ruliweb.com/market/board/{board}'
-                if P.ModelSetting.get(f'use_board_ruriweb_{board}') == 'True':
-                    getdata = sess.get(url)
-                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
-                    for matchNum, match in enumerate(matches, start=1):
-                        new_obj = match.groupdict()
-                        new_obj['site'] = 'ruriweb'
-                        new_obj['board'] = board
-                        ret['data'].append(new_obj)
-
-        if P.ModelSetting.get('use_site_coolenjoy') == 'True':
-            boards = ['jirum']
-            for board in boards:
-                regex = r'<td class=\"td_subject\">\s+<a href=\"(?P<url>.+)\">\s+(?:<font color=.+?>)?(?P<title>.+?)(?:</font>)?\s+<span class=\"sound_only\"'
-                url = f'https://coolenjoy.net/bbs/{board}'
-                if P.ModelSetting.get(f'use_board_coolenjoy_{board}') == 'True':
-                    getdata = sess.get(url)
-                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
-                    for matchNum, match in enumerate(matches, start=1):
-                        new_obj = match.groupdict()
-                        new_obj['site'] = 'coolenjoy'
-                        new_obj['board'] = board
-                        ret['data'].append(new_obj)
-
-        if P.ModelSetting.get('use_site_quasarzone') == 'True':
-            boards = ['qb_saleinfo']
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'android', 'desktop': False})
-            for board in boards:
-                regex = r'<p class=\"tit\">\s+<a href=\"(?P<url>.+)\"\s+class=.+>\s+.+\s+(?:<span class=\"ellipsis-with-reply-cnt\">)?(?P<title>.+?)(?:</span>)'
-                url = f'https://quasarzone.com/bbs/{board}'
-                if P.ModelSetting.get(f'use_board_quasarzone_{board}') == 'True':
-                    getdata = scraper.get(url)
-                    matches = re.finditer(regex, getdata.text, re.MULTILINE)
-                    for matchNum, match in enumerate(matches, start=1):
-                        new_obj = match.groupdict()
-                        new_obj['site'] = 'quasarzone'
-                        new_obj['board'] = board
-                        new_obj['url'] = 'https://quasarzone.com' + new_obj['url'] if new_obj['url'].startswith('/') else new_obj['url']
-                        ret['data'].append(new_obj)
+        for site, boards in BOARD_URLS.items():
+            if P.ModelSetting.get(f'use_site_{site}') != 'True':
+                continue
+            for board, url in boards.items():
+                if P.ModelSetting.get(f'use_board_{site}_{board}') != 'True':
+                    continue
+                try:
+                    page = community_page(sess, url)
+                    rows = community_rows(page, site, board)
+                    if not rows:
+                        raise ValueError('no board posts found')
+                    ret['data'].extend(rows)
+                except (requests.RequestException, ParserError, ValueError) as error:
+                    P.logger.warning('%s list %s: %s', site, board, error)
+                    ret['status'] = 'warning'
 
         for row in ret['data']:
             ModelItem.update({
